@@ -12,6 +12,7 @@ app.use(express.json());
 
 app.set('query parser', 'extended');
 
+console.log(process.env.NODE_ENV);
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
