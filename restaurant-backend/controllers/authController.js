@@ -55,3 +55,22 @@ exports.login = catchAsync(async (req, res, next) => {
     token,
   });
 });
+
+exports.protected = catchAsync(async (req, res, next) => {
+  // 1) Get the token
+  let token;
+
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith('Bearer')
+  ) {
+    token = req.headers.authorization.split(' ')[1];
+  }
+  console.log(token);
+
+  if (!token) {
+    return next(new AppError('Please log in to get access', 401));
+  }
+
+  next();
+});

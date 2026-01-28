@@ -1,5 +1,6 @@
 const express = require('express');
 const menuController = require('./../controllers/menuController');
+const authController = require('./../controllers/authController');
 
 const router = express.Router();
 
@@ -9,7 +10,7 @@ router
 router.route('/stats').get(menuController.getMenuStats);
 router
   .route('/')
-  .get(menuController.getAllMenu)
+  .get(authController.protected, menuController.getAllMenu)
   .post(menuController.createNewMenu);
 
 router
