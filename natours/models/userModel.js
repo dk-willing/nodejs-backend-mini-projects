@@ -18,6 +18,11 @@ const userSchema = new mongoose.Schema({
     validate: [validator.isEmail, "Please provide a valid email"],
     unique: true,
   },
+  role: {
+    type: String,
+    enum: ["user", "guide", "lead-guide", "admin"],
+    default: "user",
+  },
   password: {
     type: String,
     required: [true, "A secure password is required"],
@@ -35,6 +40,10 @@ const userSchema = new mongoose.Schema({
     },
   },
   photo: String,
+  passwordChanged: {
+    type: Date,
+    default: Date.now(),
+  },
 });
 
 // This is how we encrypt our password
@@ -45,6 +54,16 @@ userSchema.pre("save", async function () {
 
 userSchema.methods.correctPassword = async function (cp, up) {
   return bcrypt.compare(cp, up);
+};
+
+userSchema.methods.changedPasswordAfter = function (JWTTokenIssuedAt) {
+  if (this.passwordChanged) {
+    const timeStamp = parseInt(this.passwordChanged.getTime() / 1000, 10);
+    console.log(JWTTokenIssuedAt, timeStamp);
+    return JWTTokenIssuedAt < timeStamp;
+  }
+
+  return false;
 };
 
 const User = mongoose.model("User", userSchema);
