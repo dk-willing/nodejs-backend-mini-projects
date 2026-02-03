@@ -1,9 +1,12 @@
+const crypto = require("crypto");
 const { promisify } = require("util");
 const jwt = require("jsonwebtoken");
 
 const catchAsync = require("./../utils/catchAsync");
 const AppError = require("./../utils/appError");
 const User = require("./../models/userModel");
+
+const sendEmail = require("./../utils/email");
 
 const signToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -102,3 +105,73 @@ exports.restrictedTo = (...roles) => {
     next();
   };
 };
+
+exports.forgotPassword = catchAsync(async (req, res, next) => {
+  const email = req.body.email;
+
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    return next(new AppError("No user found with the email provided", 404));
+  }
+
+  const resetToken = user.createPasswordResetToken();
+  await user.save({ validateBeforeSave: false });
+
+  const resetURL = `${req.protocol}://${req.get("host")}/api/v1/users/resetPassword/${resetToken}`;
+
+  const message = `Visit this url: ${resetURL} to reset your password. Ignore this email if you didn't request for a password reset`;
+
+  try {
+    await sendEmail({
+      email: user.email,
+      subject: "Reset Your Password",
+      message,
+    });
+
+    res.status(200).json({
+      status: "success",
+      message: "Reset token has been sent to your email!",
+    });
+  } catch (err) {
+    console.log(err);
+    user.passwordResetToken = undefined;
+    user.passwordResetTokenExpires = undefined;
+    user.save({ validateBeforeSave: false });
+
+    return next(
+      new AppError(
+        "Error while sending email. Please wait and try again.",
+        500,
+      ),
+    );
+  }
+});
+
+exports.resetPassword = catchAsync(async (req, res, next) => {
+  const token = req.params.token;
+
+  const resetToken = crypto.createHash("sha256").update(token).digest("hex");
+
+  const user = await User.findOne({
+    passwordResetToken: resetToken,
+    passwordResetTokenExpires: { $gt: Date.now() },
+  });
+
+  if (!user) {
+    return next(new AppError("No user found or expired token", 403));
+  }
+
+  user.password = req.body.password;
+  user.passwordConfirm = req.body.passwordConfirm;
+  user.passwordResetToken = undefined;
+  user.passwordResetTokenExpires = undefined;
+  await user.save();
+
+  const signedToken = signToken(user._id);
+
+  res.status(200).json({
+    status: "success",
+    token: signedToken,
+  });
+});
